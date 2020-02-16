@@ -5,7 +5,7 @@ set -eEuo pipefail
 export PROJECT_ID=mco-fyi
 
 docker build --tag "gcr.io/${PROJECT_ID}/mco-fyi" .
-docker push "gcr.io/${PROJECT_ID}/mco-fyi" 
+docker push "gcr.io/${PROJECT_ID}/mco-fyi"
 gcloud beta run deploy "mco-fyi" \
   --image "gcr.io/${PROJECT_ID}/mco-fyi" \
   --platform "managed" \
