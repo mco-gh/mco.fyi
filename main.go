@@ -6,11 +6,21 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func redirect(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, "http://www.google.com", 301)
+	path := strings.TrimLeft(r.URL.Path, "/")
+	fmt.Println(path)
+	if url, ok := links[path]; ok {
+		//do something here
+		http.Redirect(w, r, url.(string), 301)
+	} else {
+		http.ServeFile(w, r, "404.html")
+	}
 }
+
+var links map[string]interface{}
 
 func main() {
 	proj := "mco-fyi"
@@ -20,13 +30,13 @@ func main() {
 		log.Fatalln(err)
 	}
 	shortlinks := client.Doc("Redirects/Shortlinks")
-
 	docsnap, err := shortlinks.Get(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	dataMap := docsnap.Data()
-	fmt.Println(dataMap)
+	links = docsnap.Data()
+
+	fmt.Println(links)
 
 	http.HandleFunc("/", redirect)
 	err = http.ListenAndServe(":8080", nil)
