@@ -1,10 +1,7 @@
-FROM golang:1.13
-
-WORKDIR /go/src/app
-COPY . .
-
-RUN go get -d -v ./...
-RUn go build
-#RUN go install -v ./...
-
-CMD ["./shorty"]
+FROM golang:latest 
+RUN mkdir /app 
+RUN go get cloud.google.com/go/firestore
+ADD . /app/ 
+WORKDIR /app 
+RUN go build -o redir . 
+CMD ["/app/redir"]

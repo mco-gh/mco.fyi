@@ -1,1 +1,1 @@
-#shorty
+# mco.fyi short link redirector
