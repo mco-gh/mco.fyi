@@ -14,8 +14,12 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(path)
 	if path == "" {
 		http.ServeFile(w, r, "home.html")
-	} else if path == "meiko.jpg" {
-		http.ServeFile(w, r, "img/meiko.jpg")
+	} else if path == "img/meiko.jpg" {
+		http.ServeFile(w, r, path)
+	} else if path == "css/skeleton.css" {
+		http.ServeFile(w, r, path)
+	} else if path == "css/normalize.css" {
+		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
 		//do something here
 		http.Redirect(w, r, url.(string), 301)
