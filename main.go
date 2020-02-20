@@ -4,31 +4,37 @@ import (
 	"cloud.google.com/go/firestore"
 	"context"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"strings"
 )
 
+var links map[string]interface{}
+
 func redirect(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimLeft(r.URL.Path, "/")
 	fmt.Println(path)
-	if path == "" {
-		http.ServeFile(w, r, "home.html")
-	} else if path == "img/meiko.jpg" {
-		http.ServeFile(w, r, path)
-	} else if path == "css/skeleton.css" {
-		http.ServeFile(w, r, path)
-	} else if path == "css/normalize.css" {
+	if path == "" || path == "/" {
+		t, err := template.ParseFiles("home.html")
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, http.StatusText(500), 500)
+		}
+		err = t.Execute(w, links)
+		if err != nil {
+			log.Println(err.Error())
+			http.Error(w, http.StatusText(500), 500)
+		}
+	} else if strings.HasPrefix(path, "css/") ||
+		strings.HasPrefix(path, "img/") {
 		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
-		//do something here
 		http.Redirect(w, r, url.(string), 301)
 	} else {
 		http.ServeFile(w, r, "404.html")
 	}
 }
-
-var links map[string]interface{}
 
 func main() {
 	proj := "mco-fyi"
@@ -43,9 +49,6 @@ func main() {
 		log.Fatalln(err)
 	}
 	links = docsnap.Data()
-
-	fmt.Println(links)
-
 	http.HandleFunc("/", redirect)
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {

@@ -33,10 +33,20 @@
   –––––––––––––––––––––––––––––––––––––––––––––––––– -->
   <div class="container">
     <div class="row">
-      <div class="one-half column" style="margin-top: 10%">
-        <h1>Marc Cohen's short link service</h1>
-        <br />
+      <div class="twelve columns" style="margin-top: 5%">
+        <h1><font face="courier">mco-fyi</font> - Marc's short link service</h1>
+      </div>
+    </div>
+    <div class="row">
+      <div class="one-half column">
         <img height="500" width="400" src="/img/meiko.jpg" />
+      </div>
+      <div class="one-half column">
+        <ul>
+          {{ range $k, $v := . }}
+            <li><a href={{$v}}>mco.fyi/{{$k}}</a></li>
+          {{ end }}
+        </ul>
       </div>
     </div>
   </div>
