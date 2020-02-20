@@ -15,7 +15,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		http.ServeFile(w, r, "home.html")
 	} else if path == "meiko.jpg" {
-		http.ServeFile(w, r, "meiko.jpg")
+		http.ServeFile(w, r, "img/meiko.jpg")
 	} else if url, ok := links[path]; ok {
 		//do something here
 		http.Redirect(w, r, url.(string), 301)
