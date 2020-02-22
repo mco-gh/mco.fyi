@@ -3,14 +3,28 @@ package main
 import (
 	"cloud.google.com/go/firestore"
 	"context"
+	"errors"
 	"fmt"
+	uuid "github.com/gofrs/uuid"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 )
 
 var links map[string]interface{}
+var gaPropertyID = mustGetenv("GA_TRACKING_ID")
+
+func mustGetenv(k string) string {
+	v := os.Getenv(k)
+	if v == "" {
+		log.Fatalf("%s environment variable not set.", k)
+	}
+	return v
+}
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimLeft(r.URL.Path, "/")
@@ -30,10 +44,51 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 		strings.HasPrefix(path, "img/") {
 		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
+		if err := trackEvent(r, "Example", "Test action", "label", nil); err != nil {
+			fmt.Fprintf(w, "Event did not track: %v", err)
+			return
+		}
+		fmt.Fprint(w, "Event tracked.")
 		http.Redirect(w, r, url.(string), 301)
 	} else {
 		http.ServeFile(w, r, "404.html")
 	}
+}
+
+func trackEvent(r *http.Request, category, action, label string, value *uint) error {
+	if gaPropertyID == "" {
+		return errors.New("analytics: GA_TRACKING_ID environment variable is missing")
+	}
+	if category == "" || action == "" {
+		return errors.New("analytics: category and action are required")
+	}
+	v := url.Values{
+		"v":   {"1"},
+		"tid": {gaPropertyID},
+		// Anonymously identifies a particular user. See the parameter guide for
+		// details:
+		// https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters#cid
+		//
+		// Depending on your application, this might want to be associated with the
+		// user in a cookie.
+		"cid": {uuid.Must(uuid.NewV4()).String()},
+		"t":   {"event"},
+		"ec":  {category},
+		"ea":  {action},
+		"ua":  {r.UserAgent()},
+	}
+	if label != "" {
+		v.Set("el", label)
+	}
+	if value != nil {
+		v.Set("ev", fmt.Sprintf("%d", *value))
+	}
+	if remoteIP, _, err := net.SplitHostPort(r.RemoteAddr); err != nil {
+		v.Set("uip", remoteIP)
+	}
+	// NOTE: Google Analytics returns a 200, even if the request is malformed.
+	_, err := http.PostForm("https://www.google-analytics.com/collect", v)
+	return err
 }
 
 func main() {
