@@ -11,20 +11,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 )
 
 var links map[string]interface{}
-var gaPropertyID = mustGetenv("GA_TRACKING_ID")
-
-func mustGetenv(k string) string {
-	v := os.Getenv(k)
-	if v == "" {
-		log.Fatalf("%s environment variable not set.", k)
-	}
-	return v
-}
+var gaPropertyID = "UA-158788691-1"
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimLeft(r.URL.Path, "/")
@@ -44,11 +35,10 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 		strings.HasPrefix(path, "img/") {
 		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
-		if err := trackEvent(r, "Example", "Test action", "label", nil); err != nil {
+		if err := trackEvent(r, "short-links", "redirect", path, nil); err != nil {
 			fmt.Fprintf(w, "Event did not track: %v", err)
 			return
 		}
-		fmt.Fprint(w, "Event tracked.")
 		http.Redirect(w, r, url.(string), 301)
 	} else {
 		http.ServeFile(w, r, "404.html")
@@ -56,9 +46,6 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func trackEvent(r *http.Request, category, action, label string, value *uint) error {
-	if gaPropertyID == "" {
-		return errors.New("analytics: GA_TRACKING_ID environment variable is missing")
-	}
 	if category == "" || action == "" {
 		return errors.New("analytics: category and action are required")
 	}
