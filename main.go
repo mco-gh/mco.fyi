@@ -35,7 +35,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
 		if err := trackEvent(r, "short-links", "redirect", path, nil); err != nil {
-			fmt.Fprintf(w, "Event did not track: %v", err)
+			log.Fprintf(w, "Event did not track: %+v", err)
 			return
 		}
 		http.Redirect(w, r, url.(string), 301)
@@ -73,7 +73,7 @@ func trackEvent(r *http.Request, category, action, label string, value *uint) er
 		v.Set("uip", remoteIP)
 	}
 	// NOTE: Google Analytics returns a 200, even if the request is malformed.
-        log.Println("%v\n", v);
+        log.Println("%+v\n", v);
 	_, err := http.PostForm("https://www.google-analytics.com/collect", v)
 	return err
 }
