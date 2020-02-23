@@ -19,7 +19,6 @@ var gaPropertyID = "UA-158788691-1"
 
 func redirect(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimLeft(r.URL.Path, "/")
-	fmt.Println(path)
 	if path == "" || path == "/" {
 		t, err := template.ParseFiles("home.html")
 		if err != nil {
@@ -74,7 +73,7 @@ func trackEvent(r *http.Request, category, action, label string, value *uint) er
 		v.Set("uip", remoteIP)
 	}
 	// NOTE: Google Analytics returns a 200, even if the request is malformed.
-        fmt.Printf("%v\n", v);
+        log.Println("%v\n", v);
 	_, err := http.PostForm("https://www.google-analytics.com/collect", v)
 	return err
 }
