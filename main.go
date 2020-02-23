@@ -35,7 +35,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, path)
 	} else if url, ok := links[path]; ok {
 		if err := trackEvent(r, "short-links", "redirect", path, nil); err != nil {
-			log.Fprintf(w, "Event did not track: %+v", err)
+			log.Println(w, "Event did not track: %+v", err)
 			return
 		}
 		http.Redirect(w, r, url.(string), 301)
