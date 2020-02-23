@@ -74,6 +74,7 @@ func trackEvent(r *http.Request, category, action, label string, value *uint) er
 		v.Set("uip", remoteIP)
 	}
 	// NOTE: Google Analytics returns a 200, even if the request is malformed.
+        fmt.Printf("%v\n", v);
 	_, err := http.PostForm("https://www.google-analytics.com/collect", v)
 	return err
 }
