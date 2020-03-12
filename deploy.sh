@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright 2020 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,10 +13,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:latest 
-RUN mkdir /app 
-RUN go get cloud.google.com/go/firestore
-ADD . /app/ 
-WORKDIR /app 
-RUN go build -o mco.fyi . 
-CMD ["/app/mco.fyi"]
+
+set -eEuo pipefail
+
+export PROJECT_ID=mco-fyi
+
+docker build --tag "gcr.io/${PROJECT_ID}/mco-fyi" .
+docker push "gcr.io/${PROJECT_ID}/mco-fyi"
+gcloud beta run deploy "mco-fyi" \
+  --image "gcr.io/${PROJECT_ID}/mco-fyi" \
+  --platform "managed" \
+  --region "us-central1" \
+  --project "${PROJECT_ID}" \
+  --concurrency 5 \
+  --memory=1Gi \
+  --allow-unauthenticated
