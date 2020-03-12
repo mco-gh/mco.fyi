@@ -12,7 +12,6 @@ import (
 
 var linkdata map[string]interface{}
 var doc *firestore.DocumentRef
-var gaPropertyID = "UA-158788691-1"
 
 type kv struct {
 	K string
@@ -79,18 +78,19 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	//updateTime := docsnap.UpdateTime
 	linkdata = docsnap.Data()
 
-	//iter := shortlinks.Snapshots(ctx)
-	//defer iter.Stop()
-	//for {
-	//docsnap, err := iter.Next()
-	//if err != nil {
-	// TODO: Handle error.
-	//}
-	//_ = docsnap // TODO: Use DocumentSnapshot.
-	//}
+	go func() {
+		iter := doc.Snapshots(ctx)
+		defer iter.Stop()
+		for {
+			docsnap, err := iter.Next()
+			if err != nil {
+				log.Fatalln(err)
+			}
+			linkdata = docsnap.Data()
+		}
+	}()
 
 	http.HandleFunc("/", redirect)
 	err = http.ListenAndServe(":8080", nil)
