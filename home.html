@@ -42,11 +42,24 @@
         <img height="500" width="400" src="/img/meiko.jpg" />
       </div>
       <div class="one-half column">
-        <ul>
-          {{ range $k, $v := . }}
-            <li><a href={{$v}}>mco.fyi/{{$k}}</a></li>
-          {{ end }}
-        </ul>
+        <table>
+          <thead>
+            <tr>
+              <th>Count</th>
+              <th>Link</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range . }}
+              <tr>
+                <td>{{.C}}</td>
+                <td><a href={{.K}}>mco.fyi/{{.K}}</a></td>
+                <td>{{.D}}</td>  
+              </tr>
+            {{ end }}
+          </tbody>
+        </table>  
       </div>
     </div>
   </div>

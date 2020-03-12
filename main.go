@@ -3,21 +3,26 @@ package main
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	"errors"
-	"fmt"
-	uuid "github.com/gofrs/uuid"
 	"html/template"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
+	"sort"
 	"strings"
 )
 
-var links map[string]interface{}
+var linkdata map[string]interface{}
+var doc *firestore.DocumentRef
 var gaPropertyID = "UA-158788691-1"
 
+type kv struct {
+	K string
+	C int64
+	U string
+	D string
+}
+
 func redirect(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
 	path := strings.TrimLeft(r.URL.Path, "/")
 	if path == "" || path == "/" {
 		t, err := template.ParseFiles("home.html")
@@ -25,7 +30,18 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 			log.Println(err.Error())
 			http.Error(w, http.StatusText(500), 500)
 		}
-		err = t.Execute(w, links)
+		var kvs []kv
+		for k, v := range linkdata {
+			tmp := v.(map[string]interface{})
+			count := tmp["count"].(int64)
+			desturl := tmp["url"].(string)
+			desc := tmp["desc"].(string)
+			kvs = append(kvs, kv{k, count, desturl, desc})
+		}
+		sort.Slice(kvs, func(i, j int) bool {
+			return kvs[i].C > kvs[j].C
+		})
+		err = t.Execute(w, kvs)
 		if err != nil {
 			log.Println(err.Error())
 			http.Error(w, http.StatusText(500), 500)
@@ -33,49 +49,21 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 	} else if strings.HasPrefix(path, "css/") ||
 		strings.HasPrefix(path, "img/") {
 		http.ServeFile(w, r, path)
-	} else if url, ok := links[path]; ok {
-		if err := trackEvent(r, "short-links", "redirect", path, nil); err != nil {
-			log.Println(w, "Event did not track: %+v", err)
+	} else if m, ok := linkdata[path]; ok {
+		v := m.(map[string]interface{})
+		if u, ok := v["url"]; ok {
+			log.Println("before: %d", v["count"])
+			v["count"] = v["count"].(int64) + 1
+			log.Println("after: %d", v["count"])
+			doc.Set(ctx, linkdata)
+			http.Redirect(w, r, u.(string), 301)
+		} else {
+			log.Println(w, "no URL found for event: %v", path)
 			return
 		}
-		http.Redirect(w, r, url.(string), 301)
 	} else {
 		http.ServeFile(w, r, "404.html")
 	}
-}
-
-func trackEvent(r *http.Request, category, action, label string, value *uint) error {
-	if category == "" || action == "" {
-		return errors.New("analytics: category and action are required")
-	}
-	v := url.Values{
-		"v":   {"1"},
-		"tid": {gaPropertyID},
-		// Anonymously identifies a particular user. See the parameter guide for
-		// details:
-		// https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters#cid
-		//
-		// Depending on your application, this might want to be associated with the
-		// user in a cookie.
-		"cid": {uuid.Must(uuid.NewV4()).String()},
-		"t":   {"event"},
-		"ec":  {category},
-		"ea":  {action},
-		"ua":  {r.UserAgent()},
-	}
-	if label != "" {
-		v.Set("el", label)
-	}
-	if value != nil {
-		v.Set("ev", fmt.Sprintf("%d", *value))
-	}
-	if remoteIP, _, err := net.SplitHostPort(r.RemoteAddr); err != nil {
-		v.Set("uip", remoteIP)
-	}
-	// NOTE: Google Analytics returns a 200, even if the request is malformed.
-        log.Println("%+v\n", v);
-	_, err := http.PostForm("https://www.google-analytics.com/collect", v)
-	return err
 }
 
 func main() {
@@ -85,12 +73,25 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	shortlinks := client.Doc("Redirects/Shortlinks")
-	docsnap, err := shortlinks.Get(ctx)
+	defer client.Close()
+	doc = client.Doc("Redirects/Shortlinks")
+	docsnap, err := doc.Get(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	links = docsnap.Data()
+	//updateTime := docsnap.UpdateTime
+	linkdata = docsnap.Data()
+
+	//iter := shortlinks.Snapshots(ctx)
+	//defer iter.Stop()
+	//for {
+	//docsnap, err := iter.Next()
+	//if err != nil {
+	// TODO: Handle error.
+	//}
+	//_ = docsnap // TODO: Use DocumentSnapshot.
+	//}
+
 	http.HandleFunc("/", redirect)
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
