@@ -49,7 +49,8 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 			count := tmp["count"].(int64)
 			desturl := tmp["url"].(string)
 			desc := tmp["desc"].(string)
-			if tmp["private"].(bool) {
+			private := tmp["private"]
+			if private != nil && private.(bool) == true {
 				continue
 			}
 			kvs = append(kvs, kv{k, count, desturl, desc})
