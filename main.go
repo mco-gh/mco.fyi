@@ -49,6 +49,9 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 			count := tmp["count"].(int64)
 			desturl := tmp["url"].(string)
 			desc := tmp["desc"].(string)
+			if tmp["private"].(bool) {
+				continue
+			}
 			kvs = append(kvs, kv{k, count, desturl, desc})
 		}
 		sort.Slice(kvs, func(i, j int) bool {
