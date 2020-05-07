@@ -16,15 +16,17 @@
 
 set -eEuo pipefail
 
-export PROJECT_ID=mco-fyi
+export PROJ=mco-fyi
+export APP=$PROJ
+export TAG="gcr.io/$PROJ/$APP"
 
-docker build --tag "gcr.io/${PROJECT_ID}/mco-fyi" .
-docker push "gcr.io/${PROJECT_ID}/mco-fyi"
-gcloud beta run deploy "mco-fyi" \
-  --image "gcr.io/${PROJECT_ID}/mco-fyi" \
-  --platform "managed" \
-  --region "us-central1" \
-  --project "${PROJECT_ID}" \
-  --concurrency 5 \
-  --memory=1Gi \
+docker build --tag "$TAG" .
+docker push "$TAG"
+gcloud beta run deploy "$APP" \
+  --image "$TAG"              \
+  --platform "managed"        \
+  --region "us-central1"      \
+  --project "$PROJ"           \
+  --concurrency 5             \
+  --memory=1Gi                \
   --allow-unauthenticated
