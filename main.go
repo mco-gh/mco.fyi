@@ -27,11 +27,12 @@ import (
 var linkdata map[string]interface{}
 var doc *firestore.DocumentRef
 
+// key/value structure for short link data
 type kv struct {
-	K string
-	C int64
-	U string
-	D string
+	Key string  // short name
+	Count int64 // count
+	Url string  // URL
+	Desc string // description
 }
 
 func redirect(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,7 @@ func redirect(w http.ResponseWriter, r *http.Request) {
 			kvs = append(kvs, kv{k, count, desturl, desc})
 		}
 		sort.Slice(kvs, func(i, j int) bool {
-			return kvs[i].C > kvs[j].C
+			return kvs[i].Count > kvs[j].Count
 		})
 		err = t.Execute(w, kvs)
 		if err != nil {
@@ -98,6 +99,10 @@ func main() {
 	}
 	linkdata = docsnap.Data()
 
+        // This function runs in the background. It gets notified
+	// anytime the dataset changes, and reloads the local copy
+	// in response to those notifications so that the running
+	// instance always has the latest version of the data handy.
 	go func() {
 		iter := doc.Snapshots(ctx)
 		defer iter.Stop()
