@@ -14,8 +14,12 @@
 
 FROM golang:latest 
 RUN mkdir /app 
-RUN go get cloud.google.com/go/firestore
-ADD . /app/ 
 WORKDIR /app 
+ADD go.mod go.sum ./
+RUN go mod download
+ADD . /app/
 RUN go build -o mco.fyi . 
+
+FROM gcr.io/distroless/static
+COPY --from=0 /app/mco.fyi /app/mco.fyi
 CMD ["/app/mco.fyi"]

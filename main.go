@@ -15,73 +15,121 @@
 package main
 
 import (
-	"cloud.google.com/go/firestore"
+	"bytes"
 	"context"
 	"html/template"
 	"log"
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
+
+	"cloud.google.com/go/firestore"
 )
 
-var linkdata map[string]interface{}
-var doc *firestore.DocumentRef
+var (
+	mu           sync.Mutex
+	linkData     map[string]interface{}
+	renderedHome []byte
 
-// key/value structure for short link data
-type kv struct {
-	Key string  // short name
-	Count int64 // count
-	Url string  // URL
-	Desc string // description
+	doc *firestore.DocumentRef
+)
+
+var homeTemplate = template.Must(template.ParseFiles("home.html"))
+
+func homeHandler(w http.ResponseWriter, r *http.Request) {
+	mu.Lock()
+	resp := renderedHome
+	mu.Unlock()
+	w.Write(resp)
 }
 
-func redirect(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+// renderHome must only be called while mu is held.
+func renderHome() ([]byte, error) {
+	type link struct {
+		Key   string // short name
+		Count int64  // count
+		URL   string // URL
+		Desc  string // description
+	}
+	var links []link
+
+	for short, v := range linkData {
+		v, ok := v.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		private := v["private"]
+		if private != nil && private.(bool) == true {
+			continue
+		}
+		count, _ := v["count"].(int64)
+		desc, _ := v["desc"].(string)
+		links = append(links, link{
+			Key:   short,
+			Count: count,
+			URL:   v["url"].(string),
+			Desc:  desc,
+		})
+	}
+	sort.Slice(links, func(i, j int) bool {
+		return links[i].Count > links[j].Count
+	})
+
+	var buf bytes.Buffer
+	if err := homeTemplate.Execute(&buf, links); err != nil {
+		log.Printf("Template.Execute: %v", err)
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func linkHandler(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimLeft(r.URL.Path, "/")
+
+	mu.Lock()
+	link, found := linkData[path]
+	mu.Unlock()
+
+	if !found {
+		http.ServeFile(w, r, "404.html")
+		return
+	}
+
+	linkDoc := link.(map[string]interface{})
+	u, ok := linkDoc["url"]
+	if !ok {
+		log.Println(w, "no URL found for event: %v", path)
+		// TODO: return a response?
+		return
+	}
+
+	go func() {
+		ctx := context.Background()
+		log.Printf("before: %d", linkDoc["count"])
+		prevCount, _ := linkDoc["count"].(int64)
+		linkDoc["count"] = prevCount + 1
+		log.Printf("after: %d", linkDoc["count"])
+		// TODO: this races, use firestore.Increment
+		doc.Set(ctx, linkData)
+	}()
+
+	http.Redirect(w, r, u.(string), 301)
+}
+
+func rootHandler(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimLeft(r.URL.Path, "/")
 	if path == "" || path == "/" {
-		t, err := template.ParseFiles("home.html")
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, http.StatusText(500), 500)
-		}
-		var kvs []kv
-		for k, v := range linkdata {
-			tmp := v.(map[string]interface{})
-			count := tmp["count"].(int64)
-			desturl := tmp["url"].(string)
-			desc := tmp["desc"].(string)
-			private := tmp["private"]
-			if private != nil && private.(bool) == true {
-				continue
-			}
-			kvs = append(kvs, kv{k, count, desturl, desc})
-		}
-		sort.Slice(kvs, func(i, j int) bool {
-			return kvs[i].Count > kvs[j].Count
-		})
-		err = t.Execute(w, kvs)
-		if err != nil {
-			log.Println(err.Error())
-			http.Error(w, http.StatusText(500), 500)
-		}
-	} else if strings.HasPrefix(path, "css/") ||
-		strings.HasPrefix(path, "img/") {
-		http.ServeFile(w, r, path)
-	} else if m, ok := linkdata[path]; ok {
-		v := m.(map[string]interface{})
-		if u, ok := v["url"]; ok {
-			log.Println("before: %d", v["count"])
-			v["count"] = v["count"].(int64) + 1
-			log.Println("after: %d", v["count"])
-			doc.Set(ctx, linkdata)
-			http.Redirect(w, r, u.(string), 301)
-		} else {
-			log.Println(w, "no URL found for event: %v", path)
-			return
-		}
-	} else {
-		http.ServeFile(w, r, "404.html")
+		homeHandler(w, r)
+		return
 	}
+
+	if strings.HasPrefix(path, "css/") || strings.HasPrefix(path, "img/") {
+		http.ServeFile(w, r, path)
+		return
+	}
+
+	linkHandler(w, r)
 }
 
 func main() {
@@ -93,13 +141,14 @@ func main() {
 	}
 	defer client.Close()
 	doc = client.Doc("Redirects/Shortlinks")
-	docsnap, err := doc.Get(ctx)
+	docSnap, err := doc.Get(ctx)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	linkdata = docsnap.Data()
+	linkData = docSnap.Data()
+	renderedHome, _ = renderHome()
 
-        // This function runs in the background. It gets notified
+	// This function runs in the background. It gets notified
 	// anytime the dataset changes, and reloads the local copy
 	// in response to those notifications so that the running
 	// instance always has the latest version of the data handy.
@@ -107,15 +156,18 @@ func main() {
 		iter := doc.Snapshots(ctx)
 		defer iter.Stop()
 		for {
-			docsnap, err := iter.Next()
+			docSnap, err := iter.Next()
 			if err != nil {
 				log.Fatalln(err)
 			}
-			linkdata = docsnap.Data()
+			mu.Lock()
+			linkData = docSnap.Data()
+			renderedHome, _ = renderHome()
+			mu.Unlock()
 		}
 	}()
 
-	http.HandleFunc("/", redirect)
+	http.HandleFunc("/", rootHandler)
 	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)

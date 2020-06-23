@@ -27,6 +27,6 @@ gcloud beta run deploy "$APP" \
   --platform "managed"        \
   --region "us-central1"      \
   --project "$PROJ"           \
-  --concurrency 5             \
+  --concurrency 80            \
   --memory=1Gi                \
   --allow-unauthenticated
